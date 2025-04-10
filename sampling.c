@@ -67,10 +67,12 @@ void sample_init() {
 volatile int32_t gADCBufferIndex = ADC_BUFFER_SIZE - 1;
 volatile uint16_t gADCBuffer[ADC_BUFFER_SIZE]; // circular buffer
 volatile uint32_t gADCErrors = 0; // number of missed ADC deadlines
-#define VIN_RANGE 4086
+#define VIN_RANGE 3.3
+#define MAX_VOLTS 3.3
 #define ADC_BITS 12
-volatile uint32_t ADC_OFFSET = VIN_RANGE /2; //constent for now
-volatile uint32_t fVoltsPerDiv = 1238;
+volatile uint32_t ADC_OFFSET = (1 << ADC_BITS) /2;
+volatile float fVoltsPerDiv = 2;
+
 
 void ADC_ISR(void)
 {
@@ -111,6 +113,31 @@ int RisingTrigger(void) // search for rising edge trigger
     return x;
 }
 
+int volts_to_adc(float volts) {
+    return (int)(volts/(MAX_VOLTS/4096));
+}
+
+int FallingTrigger(void) // search for rising edge trigger
+{
+    int init_index =  gADCBufferIndex - (LCD_HORIZONTAL_MAX /2);
+    // Step 1
+    int x = init_index;/* half screen width; don’t use a
+    magic number */;
+    // Step 2
+    int x_stop = x - ADC_BUFFER_SIZE/2;
+    for (; x > x_stop; x--) {
+    if ( gADCBuffer[ADC_BUFFER_WRAP(x)] <= ADC_OFFSET &&
+            gADCBuffer[ADC_BUFFER_WRAP(x-1)] > ADC_OFFSET) {
+            break;
+        }
+    }
+    // Step 3
+    if (x == x_stop) { // for loop ran to the end
+        x = init_index; // reset x back to how it was initialized
+    }
+    return x;
+}
+
 
 void draw_grid(tContext* context,tRectangle* rectFullScreen,uint16_t max_width,uint16_t max_height) {
     GrContextForegroundSet(context, ClrBlack);
@@ -137,10 +164,10 @@ void update_draw_buffer() {
     for(i=(LCD_HORIZONTAL_MAX/2) * -1;i<LCD_HORIZONTAL_MAX/2;++i) {
         int index = ADC_BUFFER_WRAP(search_index +i);
         int32_t sample = gADCBuffer[index];
-
-        float fScale = (VIN_RANGE * PIXELS_PER_DIV)/((1 << ADC_BITS) * fVoltsPerDiv);
+        uint32_t adc_bit=(1 << ADC_BITS);
+        float fScale = (VIN_RANGE * PIXELS_PER_DIV)/(adc_bit * fVoltsPerDiv);
         int y = LCD_VERTICAL_MAX/2 - (int)roundf(fScale * ((int)sample - ADC_OFFSET));
-
-        draw_buffer[(LCD_HORIZONTAL_MAX/2)+i] = y;
+        int draw_index = (LCD_HORIZONTAL_MAX/2)+i;
+        draw_buffer[draw_index] = y;
     }
 }

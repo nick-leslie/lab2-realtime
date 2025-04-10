@@ -117,10 +117,8 @@ int main(void)
                 should_update_draw_buffer=true;
             }
         }
-        if(should_update_draw_buffer ==true) {
+
             update_draw_buffer();
-//            should_update_draw_buffer=false;
-        }
     }
 }
 
